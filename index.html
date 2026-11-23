@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flashcard Klinis — Modul 5.2 Sistem Digestivus</title>
+  <title>Flashcard</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Plus Jakarta Sans & Inter -->
@@ -118,7 +118,7 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <h1 class="font-display font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white truncate">
-              Modul 5.2 Sistem Digestivus
+              Flashcard
             </h1>
             <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-brand-50 text-brand-700 border border-brand-200 dark:bg-brand-950/60 dark:text-brand-300 dark:border-brand-800">
               205 Kartu High-Yield
@@ -399,7 +399,7 @@
                 <p class="text-[11px] font-bold uppercase tracking-wider text-brand-700 dark:text-brand-400 mb-1">
                   Inti Jawaban
                 </p>
-                <div id="back-answer-main" class="font-display font-bold text-base sm:text-lg text-slate-900 dark:text-white leading-snug">
+                <div id="back-answer-main" class="font-display font-bold text-base sm:text-lg text-slate-900 dark:text-white leading-snug whitespace-pre-line">
                   Jawaban utama...
                 </div>
               </div>
@@ -409,7 +409,7 @@
                 <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   Penjelasan Lengkap &amp; Korelasi Klinis
                 </p>
-                <div id="back-explanation" class="text-sm sm:text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 space-y-2">
+                <div id="back-explanation" class="text-sm sm:text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 space-y-2 whitespace-pre-line">
                   Penjelasan detail...
                 </div>
               </div>
@@ -665,6 +665,22 @@
             <select id="manage-filter-dept" class="manage-input sm:w-56"></select>
             <select id="manage-filter-topic" class="manage-input sm:w-56"><option value="ALL">Semua topik</option></select>
           </div>
+
+          <!-- Hapus seluruh kartu berdasarkan departemen -->
+          <div class="rounded-xl border border-rose-200 dark:border-rose-900/70 p-4 space-y-3">
+            <div>
+              <h4 class="font-bold text-sm text-slate-800 dark:text-white">Hapus Kartu per Departemen</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Hapus seluruh flashcard dari satu departemen. Data departemen dan departemen lainnya tidak akan dihapus.</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <select id="delete-dept-select" class="manage-input flex-1" aria-label="Pilih departemen untuk menghapus kartu"></select>
+              <button id="btn-delete-dept-cards" type="button" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors">
+                Hapus Semua Kartu di Departemen Ini
+              </button>
+            </div>
+            <p id="delete-dept-count" class="text-[11px] text-slate-500 dark:text-slate-400">Jumlah kartu di departemen terpilih: 0</p>
+          </div>
+
           <div id="manage-card-list" class="space-y-2"></div>
         </section>
       </div>
@@ -4142,6 +4158,15 @@
         : 'Menunggu penambahan batch berikutnya';
     }
 
+    // Ubah teks literal \n (hasil double-escape di JSON) menjadi newline asli
+    function fixNewlines(text) {
+      return String(text ?? '')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
+    }
+
     function renderCardStage() {
       const deptObj = DEPARTMENTS.find(d => d.id === state.selectedDept);
       const deptCards = getOrderedCardsForDept(state.selectedDept);
@@ -4255,9 +4280,12 @@
       // Populate Back Face
       document.getElementById('back-card-number').textContent = `${state.currentIndex + 1} / ${filtered.length}`;
       document.getElementById('back-source').textContent = `Sumber: ${card.source}`;
-      document.getElementById('back-answer-main').innerHTML = card.answerMain;
-      document.getElementById('back-explanation').innerHTML = card.explanation;
-
+      document.getElementById('back-answer-main').innerHTML = fixNewlines(card.answerMain);
+      document.getElementById('back-explanation').innerHTML = String(card.explanation ?? '')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
       // Highlight active assessment button if already marked
       const btnUlangi = document.getElementById('btn-mark-ulangi');
       const btnHafal = document.getElementById('btn-mark-hafal');
@@ -4430,7 +4458,7 @@
       return id;
     }
     function refreshDeptSelects() {
-      const selects = ['new-dept','import-dept','edit-dept','manage-filter-dept'];
+      const selects = ['new-dept','import-dept','edit-dept','manage-filter-dept','delete-dept-select'];
       selects.forEach(id => {
         const el = byId(id), old = el.value;
         const first = id === 'import-dept' || id === 'manage-filter-dept'
@@ -4440,6 +4468,57 @@
         else if (id === 'new-dept' || id === 'edit-dept') el.value = state.selectedDept;
       });
     }
+    function refreshDeleteDepartmentCount() {
+      const select = byId('delete-dept-select');
+      const countLabel = byId('delete-dept-count');
+      if (!select || !countLabel) return;
+      const deptId = select.value;
+      const dept = DEPARTMENTS.find(d => d.id === deptId);
+      const count = FLASHCARDS.filter(card => card.deptId === deptId).length;
+      countLabel.textContent = `Jumlah kartu di ${dept ? (dept.shortName || dept.name) : 'departemen terpilih'}: ${count}`;
+      byId('btn-delete-dept-cards').disabled = !dept || count === 0;
+      byId('btn-delete-dept-cards').classList.toggle('opacity-50', !dept || count === 0);
+      byId('btn-delete-dept-cards').classList.toggle('cursor-not-allowed', !dept || count === 0);
+    }
+
+    function deleteDepartmentCards() {
+      const deptId = byId('delete-dept-select').value;
+      const dept = DEPARTMENTS.find(d => d.id === deptId);
+      if (!dept) {
+        alert('Pilih departemen yang valid.');
+        return;
+      }
+
+      const cardsToDelete = FLASHCARDS.filter(card => card.deptId === deptId);
+      const count = cardsToDelete.length;
+      if (count === 0) {
+        showToast('Tidak ada kartu pada departemen ini', 'bg-slate-400');
+        refreshDeleteDepartmentCount();
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Yakin ingin menghapus seluruh ${count} kartu di departemen ${dept.name}? Tindakan ini tidak bisa dibatalkan.`
+      );
+      if (!confirmed) return;
+
+      const deletedIds = new Set(cardsToDelete.map(card => card.id));
+      FLASHCARDS = FLASHCARDS.filter(card => card.deptId !== deptId);
+      state.deckOrder = state.deckOrder.filter(id => !deletedIds.has(id));
+      deletedIds.forEach(id => { delete state.progress[id]; });
+
+      state.currentIndex = 0;
+      state.isFlipped = false;
+      state.selectedSubtopic = 'ALL';
+      state.selectedStatus = 'ALL';
+
+      saveState();
+      renderAll();
+      renderManageList();
+      refreshDeleteDepartmentCount();
+      showToast(`${count} kartu dari ${dept.name} berhasil dihapus`, 'bg-rose-400');
+    }
+
     function refreshManageTopicFilter() {
       const deptId = byId('manage-filter-dept').value;
       const topics = [...new Set(FLASHCARDS.filter(c => deptId === 'ALL' || c.deptId === deptId).map(c => c.subtopic || 'Tanpa topik'))].sort();
@@ -4458,6 +4537,7 @@
         return (!q || hay.includes(q)) && (dept === 'ALL' || c.deptId === dept) && (topic === 'ALL' || (c.subtopic || 'Tanpa topik') === topic);
       });
       byId('manage-count').textContent = `${FLASHCARDS.length} kartu • ${DEPARTMENTS.length} departemen • ${cards.length} ditampilkan`;
+      refreshDeleteDepartmentCount();
       const list = byId('manage-card-list'); list.innerHTML = '';
       if (!cards.length) { list.innerHTML = '<p class="text-sm text-center text-slate-500 py-8">Tidak ada kartu yang cocok.</p>'; return; }
       cards.forEach(card => {
@@ -4505,8 +4585,12 @@
       return {
         id: makeId('import'), deptId, subtopic: String(raw.subtopic ?? raw.topic ?? raw.topik ?? 'Umum'),
         type: String(raw.type || 'Hafalan Kunci'), source: String(raw.source || 'Import JSON'),
-        question: String(question), answerMain: String(answerMain),
+        question: String(question), answerMain: fixNewlines(answerMain),
         explanation: String(raw.explanation ?? raw.pembahasan ?? '')
+          .replace(/\\r\\n/g, '\n')
+          .replace(/\\n/g, '\n')
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
       };
     }
     function exportDatabase() {
@@ -4518,6 +4602,8 @@
     byId('manage-search').addEventListener('input', renderManageList);
     byId('manage-filter-dept').addEventListener('change', renderManageList);
     byId('manage-filter-topic').addEventListener('change', renderManageList);
+    byId('delete-dept-select').addEventListener('change', refreshDeleteDepartmentCount);
+    byId('btn-delete-dept-cards').addEventListener('click', deleteDepartmentCards);
     byId('btn-add-card').addEventListener('click', () => {
       const question = byId('new-question').value.trim(), answer = byId('new-answer').value.trim();
       const deptId = byId('new-dept').value, topic = byId('new-topic').value.trim();
